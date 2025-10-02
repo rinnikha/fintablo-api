@@ -61,6 +61,8 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+*.db
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -129,6 +131,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.sample
 .venv
 env/
 venv/
@@ -167,6 +171,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 .vs
+.claude/
 
 # Ruff stuff:
 .ruff_cache/
