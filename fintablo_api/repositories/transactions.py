@@ -14,6 +14,12 @@ class TransactionRepository(BaseRepository[Transaction]):
     def __init__(self, http_client: HttpClient):
         super().__init__(http_client, "v1/transaction", Transaction)
 
+    def get_by_id(self, transaction_id: int) -> Optional[Transaction]:
+        data = self.http_client.get(f"/{self.endpoint}/{transaction_id}")
+        result = self._create_models_from_response(data)
+        if len(result) > 0:
+            return result[0]
+        return None
     def get_by_account(self, moneybag_id: int) -> List[Transaction]:
         """Get transactions for a specific account."""
         params = {"moneybagId": moneybag_id}
