@@ -171,6 +171,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 .vs
+.vscode/
 .claude/
 
 # Ruff stuff:
@@ -178,3 +179,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+.python-version
