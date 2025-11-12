@@ -1,6 +1,4 @@
-"""
-HTTP client for making requests to the Fintablo API.
-"""
+"""HTTP client for making requests to the Fintablo API."""
 
 import json
 import logging
@@ -20,15 +18,18 @@ from .exceptions import (
     ServerException,
     TimeoutException,
     ConnectionException,
+    BadRequestException,
+    ForbiddenException,
 )
+from .logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger("http_client")
 
 
 class HttpClient:
     """HTTP client for making requests to the Fintablo API."""
-    
+
     def __init__(
         self,
         base_url: str,
@@ -43,10 +44,10 @@ class HttpClient:
         self.api_key = api_key
         self.timeout = timeout
         self.debug = debug
-        
+
         # Create session
         self.session = requests.Session()
-        
+
         # Set up retries
         retry_strategy = Retry(
             total=max_retries,
@@ -57,7 +58,7 @@ class HttpClient:
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
-        
+
         # Set default headers
         self.session.headers.update({
             "Content-Type": "application/json",
@@ -65,12 +66,11 @@ class HttpClient:
             "Authorization": f"Bearer {api_key}",
             "User-Agent": user_agent or f"fintablo-api-python/0.1.0",
         })
-        
+
         if debug:
-            # Enable debug logging for requests
-            logging.basicConfig(level=logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
             logging.getLogger("urllib3.connectionpool").setLevel(logging.DEBUG)
-    
+
     def _make_request(
         self,
         method: str,
@@ -81,61 +81,73 @@ class HttpClient:
     ) -> requests.Response:
         """Make an HTTP request to the API."""
         url = urljoin(self.base_url, endpoint.lstrip("/"))
-        
+
         # Prepare request arguments
         request_kwargs = {
             "timeout": self.timeout,
         }
-        
+
         if params:
             request_kwargs["params"] = params
-        
+
         if data:
             if isinstance(data, dict):
                 request_kwargs["json"] = data
             else:
                 request_kwargs["data"] = data
-        
+
         if headers:
             request_kwargs["headers"] = {**self.session.headers, **headers}
-        
+
         if self.debug:
             logger.debug(f"Making {method.upper()} request to {url}")
             if params:
                 logger.debug(f"Query params: {params}")
             if data:
                 logger.debug(f"Request data: {data}")
-        
+
         try:
             response = self.session.request(method, url, **request_kwargs)
-            
+
             if self.debug:
                 logger.debug(f"Response status: {response.status_code}")
                 logger.debug(f"Response headers: {dict(response.headers)}")
-            
+
             self._handle_response_errors(response)
             return response
-            
+
         except requests.exceptions.Timeout as e:
             raise TimeoutException(f"Request timed out: {str(e)}")
         except requests.exceptions.ConnectionError as e:
             raise ConnectionException(f"Connection error: {str(e)}")
         except requests.exceptions.RequestException as e:
             raise FinTabloException(f"Request failed: {str(e)}")
-    
+
     def _handle_response_errors(self, response: requests.Response):
         """Handle HTTP error responses."""
         if response.status_code < 400:
             return
-        
+
         try:
             error_data = response.json()
-            error_message = error_data.get("message", "Unknown error")
+            error_message = error_data.get("statusText", "Unknown error")
         except (ValueError, json.JSONDecodeError):
             error_message = response.text or f"HTTP {response.status_code}"
-        
-        if response.status_code == 401:
+
+        if response.status_code == 400:
+            raise BadRequestException(
+                error_message,
+                response=response,
+                status_code=response.status_code
+            )
+        elif response.status_code == 401:
             raise AuthenticationException(
+                error_message,
+                response=response,
+                status_code=response.status_code
+            )
+        elif response.status_code == 403:
+            raise ForbiddenException(
                 error_message,
                 response=response,
                 status_code=response.status_code
@@ -174,32 +186,32 @@ class HttpClient:
                 response=response,
                 status_code=response.status_code
             )
-    
+
     def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Make a GET request."""
         response = self._make_request("GET", endpoint, params=params, **kwargs)
         return response.json() if response.content else {}
-    
+
     def post(self, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Make a POST request."""
         response = self._make_request("POST", endpoint, data=data, **kwargs)
         return response.json() if response.content else {}
-    
+
     def put(self, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Make a PUT request."""
         response = self._make_request("PUT", endpoint, data=data, **kwargs)
         return response.json() if response.content else {}
-    
+
     def patch(self, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """Make a PATCH request."""
         response = self._make_request("PATCH", endpoint, data=data, **kwargs)
         return response.json() if response.content else {}
-    
+
     def delete(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a DELETE request."""
         response = self._make_request("DELETE", endpoint, **kwargs)
         return response.json() if response.content else {}
-    
+
     def close(self):
         """Close the HTTP session."""
         self.session.close()

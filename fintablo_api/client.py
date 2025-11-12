@@ -1,13 +1,11 @@
-"""
-Main client class for the Fintablo API.
-"""
+"""Main client class for the Fintablo API."""
 
 import logging
 from typing import Optional, Dict, Any
-from urllib.parse import urljoin
 
 from .http_client import HttpClient
 from .exceptions import FinTabloException, AuthenticationException
+from .logging_utils import get_logger
 from .repositories import (
     CategoryRepository,
     MoneybagRepository,
@@ -17,7 +15,7 @@ from .repositories import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger("client")
 
 
 class Fintablo:
@@ -60,7 +58,7 @@ class Fintablo:
         self.debug = debug
         
         if debug:
-            logging.basicConfig(level=logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
         
         # Initialize HTTP client
         self.http_client = HttpClient(

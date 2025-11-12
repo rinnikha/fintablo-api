@@ -1,9 +1,7 @@
-"""
-Data models for FinTablo API entities using dataclasses.
-"""
+"""Data models for FinTablo API entities using dataclasses."""
 
 from datetime import datetime
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Dict, Any, List, Optional, Union
 from enum import Enum
 
@@ -16,26 +14,66 @@ class GroupEnum(str, Enum):
     TRANSFER = "transfer"  # Переводы
 
 
-def to_api_dict(obj) -> Dict[str, Any]:
-    """Convert dataclass to API format dictionary."""
-    result = {}
-    for key, value in asdict(obj).items():
-        if value is not None:
-            # Handle datetime serialization - API expects dd.mm.YYYY HH:mm format
-            if isinstance(value, datetime):
-                value = value.strftime("%d.%m.%Y %H:%M")
+def _serialize_value(value: Any) -> Any:
+    """Recursively serialize values for API consumption."""
+    if value is None:
+        return None
 
-            # Handle enum serialization
-            if isinstance(value, Enum):
-                value = value.value
+    if isinstance(value, datetime):
+        # API expects datetimes as dd.mm.YYYY HH:mm
+        return value.strftime("%d.%m.%Y %H:%M")
 
-            # Keys are already in camelCase, no conversion needed
-            result[key] = value
+    if isinstance(value, Enum):
+        return value.value
+
+    if isinstance(value, list):
+        serialized_list = []
+        for item in value:
+            serialized_item = _serialize_value(item)
+            if serialized_item is not None:
+                serialized_list.append(serialized_item)
+        return serialized_list
+
+    if isinstance(value, dict):
+        serialized: Dict[str, Any] = {}
+        for key, item in value.items():
+            serialized_item = _serialize_value(item)
+            if serialized_item is not None:
+                serialized[key] = serialized_item
+        return serialized
+
+    if is_dataclass(value):
+        return to_api_dict(value)
+
+    if hasattr(value, "to_api_dict"):
+        return value.to_api_dict()
+
+    return value
+
+
+def to_api_dict(obj: Any) -> Dict[str, Any]:
+    """Convert dataclass instance to API-ready dictionary."""
+    if not is_dataclass(obj):
+        raise TypeError("to_api_dict expects a dataclass instance")
+
+    result: Dict[str, Any] = {}
+    for field_obj in fields(obj):
+        value = getattr(obj, field_obj.name)
+        serialized = _serialize_value(value)
+        if serialized is not None:
+            result[field_obj.name] = serialized
     return result
 
 
+class ApiModel:
+    """Mixin providing API serialization."""
+
+    def to_api_dict(self) -> Dict[str, Any]:
+        return to_api_dict(self)
+
+
 @dataclass
-class Category:
+class Category(ApiModel):
     """Category (Статья) model for cash flow categorization."""
 
     id: Optional[int] = None
@@ -47,13 +85,8 @@ class Category:
     description: Optional[str] = None
     isBuiltIn: Optional[bool] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Moneybag:
+class Moneybag(ApiModel):
     """Moneybag (Счет) model for financial accounts."""
 
     id: Optional[int] = None
@@ -69,13 +102,8 @@ class Moneybag:
     hideInTotal: Optional[bool] = None
     withoutNds: Optional[bool] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Partner:
+class Partner(ApiModel):
     """Partner (Контрагент) model for business partners."""
 
     id: Optional[int] = None
@@ -84,25 +112,15 @@ class Partner:
     groupId: Optional[int] = None
     comment: Optional[str] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Direction:
+class Direction(ApiModel):
     """Direction (Направление) model for business directions."""
 
     id: Optional[int] = None
     name: Optional[str] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Transaction:
+class Transaction(ApiModel):
     """Transaction (Операция ДДС) model for cash flow transactions."""
 
     id: Optional[int] = None
@@ -128,13 +146,8 @@ class Transaction:
     obtainingId: Optional[int] = None
     course: Optional[int] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Deal:
+class Deal(ApiModel):
     """Deal (Сделка) model for business deals."""
 
     id: Optional[int] = None
@@ -155,13 +168,8 @@ class Deal:
     nds: Optional[float] = None
     stages: List[Dict[str, Any]] = field(default_factory=list)
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Employee:
+class Employee(ApiModel):
     """Employee (Сотрудник) model for employees."""
 
     id: Optional[int] = None
@@ -177,13 +185,8 @@ class Employee:
     fired: Optional[str] = None
     comment: Optional[str] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Goods:
+class Goods(ApiModel):
     """Goods (Товар) model for inventory items."""
 
     id: Optional[int] = None
@@ -194,13 +197,10 @@ class Goods:
     startQuantity: Optional[float] = None
     avgCost: Optional[float] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
 
 
 @dataclass
-class Job:
+class Job(ApiModel):
     """Job (Услуга) model for services."""
 
     id: Optional[int] = None
@@ -208,13 +208,8 @@ class Job:
     cost: Optional[float] = None
     comment: Optional[str] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class Obligation:
+class Obligation(ApiModel):
     """Obligation (Обязательство) model for business obligations."""
 
     id: Optional[int] = None
@@ -230,54 +225,30 @@ class Obligation:
     actDate: Optional[str] = None
     nds: Optional[float] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class MoneybagGroup:
+class MoneybagGroup(ApiModel):
     """MoneybagGroup (Группа счетов) model."""
 
     id: Optional[int] = None
     name: Optional[str] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class PartnerGroup:
+class PartnerGroup(ApiModel):
     """PartnerGroup (Группа контрагентов) model."""
 
     id: Optional[int] = None
     name: Optional[str] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class DealStatus:
+class DealStatus(ApiModel):
     """DealStatus (Статус сделки) model."""
 
     id: Optional[int] = None
     name: Optional[str] = None
 
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)
-
-
 @dataclass
-class ObligationStatus:
+class ObligationStatus(ApiModel):
     """ObligationStatus (Статус обязательства) model."""
 
     id: Optional[int] = None
     name: Optional[str] = None
-
-    def to_api_dict(self) -> Dict[str, Any]:
-        """Convert to API format."""
-        return to_api_dict(self)

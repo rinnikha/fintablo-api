@@ -12,6 +12,12 @@ from .exceptions import (
     ValidationException,
     RateLimitException,
     ServerException,
+    TimeoutException,
+    ConnectionException,
+    BadRequestException,
+    ForbiddenException,
+    ModelParsingException,
+    EmptyResponseException,
 )
 from .models import (
     Category,
@@ -26,22 +32,33 @@ from .models import (
     Obligation,
     GroupEnum,
 )
+from .logging_utils import setup_logging, get_logger as _get_logger
 
 __version__ = "0.1.0"
 __author__ = "Your Name"
 __email__ = "your.email@example.com"
 
+get_logger = _get_logger
+
 __all__ = [
     "Fintablo",
+    # Exceptions
     "FinTabloException",
     "AuthenticationException",
-    "NotFoundException", 
+    "NotFoundException",
     "ValidationException",
     "RateLimitException",
     "ServerException",
+    "TimeoutException",
+    "ConnectionException",
+    "BadRequestException",
+    "ForbiddenException",
+    "ModelParsingException",
+    "EmptyResponseException",
+    # Models
     "Category",
     "Moneybag",
-    "Partner", 
+    "Partner",
     "Direction",
     "Transaction",
     "Deal",
@@ -50,4 +67,7 @@ __all__ = [
     "Job",
     "Obligation",
     "GroupEnum",
+    # Utilities
+    "setup_logging",
+    "get_logger",
 ]

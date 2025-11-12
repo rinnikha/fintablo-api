@@ -5,6 +5,11 @@ Base classes for repositories and query builders.
 from typing import Dict, Any, List, Optional, Type, TypeVar, Generic
 
 from .http_client import HttpClient
+from .exceptions import (
+    ModelParsingException,
+    EmptyResponseException,
+    NotFoundException,
+)
 
 
 T = TypeVar("T")
@@ -99,16 +104,30 @@ class BaseRepository(Generic[T]):
 
     def find_all(self) -> List[T]:
         """Get all entities."""
-        data = self.http_client.get(f"/{self.endpoint}")
-        return self._create_models_from_response(data)
+        return self._list()
 
     def find_by_id(self, entity_id: int) -> Optional[T]:
-        """Find an entity by ID."""
-        try:
-            data = self.http_client.get(f"/{self.endpoint}/{entity_id}")
-            return self._create_model(data)
-        except Exception:
-            return None
+        """Find an entity by ID.
+
+        Raises:
+            NotFoundException: If the entity with the given ID is not found
+            ModelParsingException: If there's an error parsing the response into a model
+            EmptyResponseException: If the API returns an empty response
+        """
+        data = self.http_client.get(f"/{self.endpoint}/{entity_id}")
+
+        # Handle response format with items array
+        if isinstance(data, dict) and "items" in data:
+            items = data["items"]
+            if not items or len(items) == 0:
+                raise EmptyResponseException(f"/{self.endpoint}/{entity_id}")
+            return self._create_model(items[0])
+
+        # Handle direct response
+        if not data:
+            raise EmptyResponseException(f"/{self.endpoint}/{entity_id}")
+
+        return self._create_model(data)
 
     def create(self, entity: T) -> T:
         """Create a new entity."""
@@ -144,6 +163,11 @@ class BaseRepository(Generic[T]):
         except Exception:
             return False
 
+    def _list(self, params: Optional[Dict[str, Any]] = None) -> List[T]:
+        """Fetch model instances with optional query parameters."""
+        data = self.http_client.get(f"/{self.endpoint}", params=params)
+        return self._create_models_from_response(data)
+
     def _query_execute(self, query_builder: QueryBuilder[T]) -> List[T]:
         """Execute a query and return results."""
         params = query_builder.build_params()
@@ -165,7 +189,11 @@ class BaseRepository(Generic[T]):
         return data.get("count", 0) if isinstance(data, dict) else 0
 
     def _create_model(self, data: Dict[str, Any]) -> T:
-        """Create a model instance from API data."""
+        """Create a model instance from API data.
+
+        Raises:
+            ModelParsingException: If there's an error creating the model from API data
+        """
         if self.model_class == dict:
             return data
 
@@ -197,13 +225,7 @@ class BaseRepository(Generic[T]):
             result = self.model_class(**converted_data)
             return result
         except Exception as e:
-            print(f"Error creating model: {e}")
-            print(f"Model class: {self.model_class}")
-            print(f"API data keys: {list(data.keys())}")
-            print(
-                f"Expected model fields: {list(self.model_class.__annotations__.keys()) if hasattr(self.model_class, '__annotations__') else 'unknown'}"
-            )
-            raise
+            raise ModelParsingException(self.model_class, data, e)
 
     def _create_models_from_response(self, data: Dict[str, Any]) -> List[T]:
         """Create model instances from API response."""

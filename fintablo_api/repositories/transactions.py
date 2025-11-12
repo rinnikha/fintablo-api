@@ -1,11 +1,11 @@
-"""
-Transaction repository for FinTablo API.
-"""
+"""Transaction repository for FinTablo API."""
 
 from typing import Dict, Any, List, Optional
+
 from ..base import BaseRepository
-from ..models import Transaction
+from ..exceptions import NotFoundException
 from ..http_client import HttpClient
+from ..models import Transaction
 
 
 class TransactionRepository(BaseRepository[Transaction]):
@@ -14,41 +14,25 @@ class TransactionRepository(BaseRepository[Transaction]):
     def __init__(self, http_client: HttpClient):
         super().__init__(http_client, "v1/transaction", Transaction)
 
-    def get_by_id(self, transaction_id: int) -> Optional[Transaction]:
-        data = self.http_client.get(f"/{self.endpoint}/{transaction_id}")
-        result = self._create_models_from_response(data)
-        if len(result) > 0:
-            return result[0]
-        return None
     def get_by_account(self, moneybag_id: int) -> List[Transaction]:
         """Get transactions for a specific account."""
-        params = {"moneybagId": moneybag_id}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"moneybagId": moneybag_id})
 
     def get_by_category(self, category_id: int) -> List[Transaction]:
         """Get transactions by category."""
-        params = {"categoryId": category_id}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"categoryId": category_id})
 
     def get_by_partner(self, partner_id: int) -> List[Transaction]:
         """Get transactions by partner."""
-        params = {"partnerId": partner_id}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"partnerId": partner_id})
 
     def get_by_direction(self, direction_id: int) -> List[Transaction]:
         """Get transactions by direction."""
-        params = {"directionId": direction_id}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"directionId": direction_id})
 
     def get_by_deal(self, deal_id: int) -> List[Transaction]:
         """Get transactions by deal."""
-        params = {"dealId": deal_id}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"dealId": deal_id})
 
     def get_by_date_range(self, date_from: str, date_to: str) -> List[Transaction]:
         """
@@ -58,9 +42,7 @@ class TransactionRepository(BaseRepository[Transaction]):
             date_from: Start date in YYYY-MM-DD format
             date_to: End date in YYYY-MM-DD format
         """
-        params = {"dateFrom": date_from, "dateTo": date_to}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"dateFrom": date_from, "dateTo": date_to})
 
     def get_by_group(self, group: str) -> List[Transaction]:
         """
@@ -69,9 +51,7 @@ class TransactionRepository(BaseRepository[Transaction]):
         Args:
             group: One of 'income', 'outcome', 'transfer'
         """
-        params = {"group": group}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"group": group})
 
     def get_income_transactions(self) -> List[Transaction]:
         """Get all income transactions."""
@@ -87,15 +67,11 @@ class TransactionRepository(BaseRepository[Transaction]):
 
     def get_planned_transactions(self) -> List[Transaction]:
         """Get planned transactions."""
-        params = {"isPlan": True}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"isPlan": True})
 
     def get_actual_transactions(self) -> List[Transaction]:
         """Get actual (non-planned) transactions."""
-        params = {"isPlan": False}
-        data = self.http_client.get(f"/{self.endpoint}", params=params)
-        return self._create_models_from_response(data)
+        return self._list({"isPlan": False})
 
     def split_transaction(self, transaction_id: int, split_data: Dict[str, Any]) -> Dict[str, Any]:
         """Split a transaction into multiple parts."""
@@ -126,12 +102,3 @@ class TransactionRepository(BaseRepository[Transaction]):
     def confirm_transaction(self, transaction_id: int) -> Dict[str, Any]:
         """Confirm a transaction."""
         return self.http_client.post(f"/{self.endpoint}/{transaction_id}/confirm")
-
-    def _create_models_from_response(self, data: Dict[str, Any]) -> List[Transaction]:
-        """Create model instances from API response."""
-        if isinstance(data, dict) and "items" in data:
-            items = data["items"]
-        else:
-            items = data if isinstance(data, list) else [data]
-
-        return [self._create_model(item) for item in items if item]

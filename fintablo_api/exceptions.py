@@ -57,3 +57,47 @@ class TimeoutException(FinTabloException):
 class ConnectionException(FinTabloException):
     """Raised when there are connection issues."""
     pass
+
+
+class ModelParsingException(FinTabloException):
+    """Raised when there's an error parsing API response into a model."""
+
+    def __init__(self, model_class, api_data, original_error):
+        self.model_class = model_class
+        self.api_data = api_data
+        self.original_error = original_error
+
+        model_name = model_class.__name__ if hasattr(model_class, "__name__") else str(model_class)
+        api_keys = list(api_data.keys()) if isinstance(api_data, dict) else "non-dict data"
+        expected_fields = (
+            list(model_class.__annotations__.keys())
+            if hasattr(model_class, "__annotations__")
+            else "unknown"
+        )
+
+        message = (
+            f"Failed to parse API response into {model_name} model.\n"
+            f"Original error: {str(original_error)}\n"
+            f"API data keys: {api_keys}\n"
+            f"Expected model fields: {expected_fields}"
+        )
+        super().__init__(message)
+
+
+class EmptyResponseException(FinTabloException):
+    """Raised when API returns an empty response when data was expected."""
+
+    def __init__(self, endpoint):
+        self.endpoint = endpoint
+        message = f"API returned empty response for endpoint: {endpoint}"
+        super().__init__(message)
+
+
+class BadRequestException(FinTabloException):
+    """Raised when the request is malformed or invalid (400)."""
+    pass
+
+
+class ForbiddenException(FinTabloException):
+    """Raised when access to resource is forbidden (403)."""
+    pass
